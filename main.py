@@ -50,9 +50,19 @@ def lerp(a = 0, b = 0, t = 0.125):
 car = import_image('assets/player.png', 3)
 car_rect = car.get_rect()
 
+police = import_image('assets/police.png', 3)
+car_g = import_image('assets/car_g.png', 3)
+car_o = import_image('assets/car_o.png', 3)
+car_r = import_image('assets/car_r.png', 3)
+car_y = import_image('assets/car_y.png', 3)
+
+
 road = import_image('assets/road.png', 4)
 road_rect_a = road.get_rect()
 road_rect_b = road.get_rect()
+
+drop_shadow = import_image('assets/shadow.png', 3)
+drop_shadow.set_alpha(50)
 
 #font = pygame.font.Font('assets/font.ttf', 32)
 
@@ -117,6 +127,8 @@ class Obstacle:
     pos: Vector2 = None
     vel: Vector2 = None
 
+    __drop_shadow_rect: Rect = None
+
     def __init__(self, texture: Surface, start_pos: Vector2, vel: Vector2) -> None:
         self.texture = texture.copy()
         self.rect = texture.get_rect()
@@ -124,15 +136,23 @@ class Obstacle:
         self.pos = Vector2(start_pos)
         self.vel = Vector2(vel)
 
+        self.__drop_shadow_rect = drop_shadow.get_rect()
+
     def update(self) -> None:
+        #position (drop shadow)
+        self.__drop_shadow_rect.center = self.pos
+        
         #position
         self.pos += self.vel * DELTA_TIME
         self.rect.center = self.pos
 
+        #drawing (drop shadow)
+        DISPLAY.blit(drop_shadow, self.__drop_shadow_rect)
+
         #drawing
         DISPLAY.blit(self.texture, self.rect)
 
-obstacle_assets = [car]
+obstacle_assets = [police, car_g, car_o, car_r, car_y]
 obstacle_spawns = [Vector2(lane_c.x, -20), Vector2(lane_l.x, -20), Vector2(lane_r.x, -20)] #NOTE we spawn at -20 so cars spawn offscreen; it looks nicer
 obstacles: List[Obstacle] = []
 
