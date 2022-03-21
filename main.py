@@ -14,7 +14,6 @@ DISPLAY_SIZE = (400, 500)
 DISPLAY = pygame.display.set_mode(DISPLAY_SIZE)
 CLOCK = pygame.time.Clock()
 
-#TODO put player in a class
 #TODO add scoring system
 #TODO make road get faster as game progresses (use a score threshold to increase difficulty)
 #TODO add a consequence when the player dies
@@ -47,8 +46,8 @@ def lerp(a = 0, b = 0, t = 0.125):
     return a + (t - 0) * (b - a) / (1 - 0)
 
 #region assets
-car = import_image('assets/player.png', 3)
-car_rect = car.get_rect()
+player = import_image('assets/player.png', 3)
+car_rect = player.get_rect()
 
 police = import_image('assets/police.png', 3)
 car_g = import_image('assets/car_g.png', 3)
@@ -65,7 +64,6 @@ drop_shadow = import_image('assets/shadow.png', 3)
 drop_shadow.set_alpha(50)
 
 #font = pygame.font.Font('assets/font.ttf', 32)
-
 #endregion
 
 #region lanes & vehicle spawns
@@ -80,31 +78,100 @@ spawn_l = Vector2(lane_l.x, 0)
 spawn_r = Vector2(lane_r.x, 0)
 
 lanes = (lane_l, lane_c, lane_r)
-current_lane = 1
 #endregion
 
 #region input
 class Direction(Enum):
     LEFT = -1
     RIGHT = 1
-
-get_l = False
-get_r = False
-
-can_press_l = False
-can_press_r = False
-
-l_pressed = False
-r_pressed = False
-
-last_direction: Direction = Direction.LEFT
 #endregion
 
 #region player
-pos = Vector2(lane_c)
-__pos = pos
-rot = 0
-__rot = rot
+class Player:
+    """
+    player controller; only one per game instance!
+    """
+
+    texture: Surface = None
+    rect: Rect = None
+
+    current_lane = 1
+    last_direction: Direction = Direction.RIGHT
+    
+    pos: Vector2 = None
+    rot = 0
+
+    __pos: Vector2 = None
+    __rot = 0
+
+    __l_pressed = False
+    __r_pressed = False
+
+    def __init__(self, texture = player, start_lane = 1) -> None:
+        self.texture = texture.copy()
+
+        self.current_lane = start_lane
+        self.pos = Vector2(lanes[self.current_lane])
+        self.rot = 0
+
+    def get_input(self) -> None:
+        get_l = pygame.key.get_pressed()[pygame.K_a]
+        get_r = pygame.key.get_pressed()[pygame.K_d]
+        
+        can_press_l = (self.current_lane > 0) and not self.__l_pressed
+        can_press_r = (self.current_lane < len(lanes) - 1) and not self.__r_pressed
+
+        #left button input
+        if get_l and can_press_l: 
+            self.current_lane -= 1
+            self.last_direction = Direction.RIGHT
+            
+            self.__l_pressed = True
+        
+        elif not get_l:
+            self.__l_pressed = False
+        
+        #right button input
+        if get_r and can_press_r:
+            self.current_lane += 1
+            self.last_direction = Direction.LEFT
+            
+            self.__r_pressed = True
+
+        elif not get_r:
+            self.__r_pressed = False
+
+    def update(self) -> None:        
+        #position & rotate
+        self.__rot = Vector2.magnitude(lanes[self.current_lane] - self.pos) * 0.75 * self.last_direction.value
+        self.__pos = lanes[self.current_lane]
+    
+        self.rot = lerp(self.rot, self.__rot, 0.125 * DELTA_TIME * 60)
+        self.pos = lerp(self.pos, self.__pos, 0.125 * DELTA_TIME * 60)
+
+        #input
+        self.get_input()
+        
+    def draw(self) -> None:
+        #rotate dropshadow
+        r_shadow = pygame.transform.rotate(drop_shadow, self.rot) #NOTE --move shadow_r to classvar?
+        
+        #center rotated dropshadow rect
+        r_shadow_rect = r_shadow.get_rect()
+        r_shadow_rect.center = self.pos
+        
+        #rotate texture
+        r_texture = pygame.transform.rotate(self.texture, self.rot) #NOTE --move texture_r to classvar?
+        
+        #center rotated texture rect
+        r_texture_rect = r_texture.get_rect()
+        r_texture_rect.center = self.pos
+
+        #draw dropshadow
+        DISPLAY.blit(r_shadow, r_shadow_rect)
+
+        #draw texture
+        DISPLAY.blit(r_texture, r_texture_rect)
 #endregion
 
 #region road
@@ -116,7 +183,7 @@ road_dsp = Vector2(0, road.get_height() * 2)
 #endregion
 
 #region obstacles
-class Obstacle:
+class Entity:
     """
     simple class for a moving obstacle
     """
@@ -146,6 +213,7 @@ class Obstacle:
         self.pos += self.vel * DELTA_TIME
         self.rect.center = self.pos
 
+    def draw(self) -> None:
         #drawing (drop shadow)
         DISPLAY.blit(drop_shadow, self.__drop_shadow_rect)
 
@@ -154,7 +222,7 @@ class Obstacle:
 
 obstacle_assets = [police, car_g, car_o, car_r, car_y]
 obstacle_spawns = [Vector2(lane_c.x, -20), Vector2(lane_l.x, -20), Vector2(lane_r.x, -20)] #NOTE we spawn at -20 so cars spawn offscreen; it looks nicer
-obstacles: List[Obstacle] = []
+obstacles: List[Entity] = []
 
 timer = 0 #NOTE timer is aggregate of deltatime used to count towards one tick
 ticks = 0 #NOTE 1 tick == 1 second
@@ -165,13 +233,15 @@ def instantiate_obstacle() -> None:
     """
 
     obstacles.append(
-        Obstacle(
+        Entity(
             obstacle_assets[randint(0, len(obstacle_assets) - 1)],
             obstacle_spawns[randint(0, len(obstacle_spawns) - 1)], #TODO change this to spawnpoints!
             Vector2(0, 300)
         )
     )
 #endregion
+
+player = Player()
 
 while True:
     #pygame opening
@@ -184,13 +254,6 @@ while True:
 
     DELTA_TIME = CLOCK.tick() / 1000
     DISPLAY.fill((0, 0, 0))
-
-    #position & rotate player
-    __rot = Vector2.magnitude(lanes[current_lane] - pos) * 0.75 * last_direction.value
-    __pos = lanes[current_lane]
-    
-    pos = lerp(pos, __pos, 0.125 * DELTA_TIME * 60)
-    rot = lerp(rot, __rot, 0.125 * DELTA_TIME * 60)
     
     #draw road
     road_rect_a.center = road_pos_a
@@ -208,13 +271,8 @@ while True:
     DISPLAY.blit(road, road_rect_a)
     DISPLAY.blit(road, road_rect_b)
 
-    #draw player --NOTE define vars globally for performance
-    player = pygame.transform.rotate(car, rot)
-    
-    player_rect = player.get_rect()
-    player_rect.center = pos
-    
-    DISPLAY.blit(player, player_rect)
+    player.update()
+    player.draw()
 
     # #draw score
     # score_text = font.render('1538', True, (255, 255, 255))
@@ -234,29 +292,6 @@ while True:
     # pygame.draw.circle(DISPLAY, (255, 0, 0), spawn_r, 5)
     
     #input
-    get_l = pygame.key.get_pressed()[pygame.K_a]
-    get_r = pygame.key.get_pressed()[pygame.K_d]
-    
-    can_press_l = (current_lane > 0) and not l_pressed
-    can_press_r = (current_lane < len(lanes) - 1) and not r_pressed
-
-    if get_l and can_press_l: 
-        current_lane -= 1
-        last_direction = Direction.RIGHT
-        
-        l_pressed = True
-    
-    elif not get_l:
-        l_pressed = False
-    
-    if get_r and can_press_r:
-        current_lane += 1
-        last_direction = Direction.LEFT
-        
-        r_pressed = True
-
-    elif not get_r:
-        r_pressed = False
 
     #update ticks
     if timer < 1:
@@ -266,7 +301,6 @@ while True:
         ticks += 1
         timer = 0
 
-
     #spawn obstacles
     if ticks == 1:
         instantiate_obstacle()
@@ -275,6 +309,7 @@ while True:
     #update obstacles
     for obstacle in obstacles:
         obstacle.update()
+        obstacle.draw()
 
     #pygame closing
     pygame.display.update()
