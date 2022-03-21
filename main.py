@@ -1,11 +1,12 @@
 import pygame
+import numpy
 import sys
 import os
 
 from enum import Enum
 from typing import List
 from random import randint
-from pygame import Surface, Rect
+from pygame import PixelArray, Surface, Rect
 from pygame.math import Vector2
 
 pygame.init()
@@ -14,9 +15,10 @@ DISPLAY_SIZE = (400, 500)
 DISPLAY = pygame.display.set_mode(DISPLAY_SIZE)
 CLOCK = pygame.time.Clock()
 
-#TODO add scoring system
-#TODO make road get faster as game progresses (use a score threshold to increase difficulty)
-#TODO add a consequence when the player dies
+#TODO Add score text outline
+#TODO Add scoring system
+#TODO Make road get faster as game progresses (Use a score threshold to increase difficulty)
+#TODO Add a consequence when the player dies
 
 def print_warning(n = "?"):
     """
@@ -72,13 +74,14 @@ spawn_c = Vector2(lane_c.x, 0)
 spawn_l = Vector2(lane_l.x, 0)
 spawn_r = Vector2(lane_r.x, 0)
 
-#region input
+# --- Input Definitions --- 
+
 class Direction(Enum):
     LEFT = -1
     RIGHT = 1
-#endregion
 
-#region player
+# --- Player ---
+
 class Player:
     """
     player controller; only one per game instance!
@@ -93,11 +96,16 @@ class Player:
     pos: Vector2 = None
     rot = 0
 
+    outline_color = (200, 200, 200)
+    outline_width = 3 #keep below 5
+
     __pos: Vector2 = None
     __rot = 0
 
     __l_pressed = False
     __r_pressed = False
+
+    __outline: Surface = None
 
     def __init__(self, texture = player, start_lane = 1) -> None:
         self.texture = texture.copy()
@@ -105,6 +113,18 @@ class Player:
         self.current_lane = start_lane
         self.pos = Vector2(lanes[self.current_lane])
         self.rot = 0
+
+        #outline generation process
+        
+        #get binary bitmap surface of texture, convert it back to a surface 
+        mask = pygame.mask.from_surface(self.texture)
+        mask_surf = mask.to_surface() #--NOTE the result is a black & white surface where black represents transparent area and white represents filled area (of passed texture)
+        
+        #convert mask_surf into pixel data (numpy array) and replace white with desired color (this will be outline's color)
+        mask_surf_pixels = PixelArray(mask_surf)
+        mask_surf_pixels.replace((255, 255, 255), self.outline_color)
+        
+        self.__outline = mask_surf_pixels.make_surface()
 
     def get_input(self) -> None:
         get_l = pygame.key.get_pressed()[pygame.K_a]
@@ -143,7 +163,24 @@ class Player:
 
         #input
         self.get_input()
+    
+    #NOTE that drawing the outline is computationally expensive!
+    def draw_outline(self, pos):
+        #rotate outline surface
+        r_outline = pygame.transform.rotate(self.__outline, self.rot)
         
+        #set outline colorkey (must do this every time we modify it)
+        r_outline.set_colorkey((0, 0, 0))
+        
+        #center rotated outline surface rect
+        r_outline_pos = pos
+        
+        #draw outline (we shift it towards every direction to give outline effect)
+        DISPLAY.blit(r_outline, (r_outline_pos[0] - self.outline_width, r_outline_pos[1]))
+        DISPLAY.blit(r_outline, (r_outline_pos[0] + self.outline_width, r_outline_pos[1]))
+        DISPLAY.blit(r_outline, (r_outline_pos[0], r_outline_pos[1] - self.outline_width))
+        DISPLAY.blit(r_outline, (r_outline_pos[0], r_outline_pos[1] + self.outline_width))
+
     def draw(self) -> None:
         #rotate dropshadow
         r_shadow = pygame.transform.rotate(shadow, self.rot) #NOTE --move shadow_r to classvar?
@@ -159,21 +196,7 @@ class Player:
         r_texture_rect = r_texture.get_rect()
         r_texture_rect.center = self.pos
 
-        # --- EXPERIMENTAL : OUTLINE ---
-        mask = pygame.mask.from_surface(r_texture)
-        mask_outline = mask.outline()
-        mask_surf = pygame.Surface(r_texture.get_size())
-        
-        for pixel in mask_outline:
-            mask_surf.set_at(pixel, (25, 25, 25))
-        
-        mask_surf.set_colorkey((0, 0, 0))
-        mask_surf_pos = Vector2(r_texture_rect.topleft)
-
-        DISPLAY.blit(mask_surf, (mask_surf_pos.x - 3, mask_surf_pos.y))
-        DISPLAY.blit(mask_surf, (mask_surf_pos.x + 3, mask_surf_pos.y))
-        DISPLAY.blit(mask_surf, (mask_surf_pos.x, mask_surf_pos.y - 3))
-        DISPLAY.blit(mask_surf, (mask_surf_pos.x, mask_surf_pos.y + 3))
+        #self.draw_outline(r_texture_rect.topleft)
 
         #draw dropshadow
         DISPLAY.blit(r_shadow, r_shadow_rect)
@@ -249,6 +272,8 @@ def instantiate_obstacle() -> None:
         )
     )
 
+# GAME LOOP ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 while True:
     #pygame opening
     if pygame.key.get_pressed()[pygame.K_ESCAPE]:
@@ -277,27 +302,23 @@ while True:
     DISPLAY.blit(road, road_rect_a)
     DISPLAY.blit(road, road_rect_b)
 
+    #update player
     player.update()
     player.draw()
+    
+    #update obstacles
+    for obstacle in obstacles:
+        obstacle.update()
+        obstacle.draw()
 
     #draw score
-    score_text = font.render('941', True, (255, 255, 255))
+    score_text = font.render('Sample', True, (255, 255, 255))
     score_text_rect = score_text.get_rect()
     score_text_rect.center = (DISPLAY_SIZE[0] / 2, 65)
+    score_text_pos = score_text_rect.topleft
+
     DISPLAY.blit(score_text, score_text_rect)
-
-    # #draw lane positons --NOTE debug
-    # pygame.draw.circle(DISPLAY, (255, 255, 255), lane_c, 5)
-    # pygame.draw.circle(DISPLAY, (255, 255, 255), lane_l, 5)
-    # pygame.draw.circle(DISPLAY, (255, 255, 255), lane_r, 5)
-
-    # #draw vehicle spawns --NOTE debug
-    # pygame.draw.circle(DISPLAY, (255, 0, 0), spawn_c, 5)
-    # pygame.draw.circle(DISPLAY, (255, 0, 0), spawn_l, 5)
-    # pygame.draw.circle(DISPLAY, (255, 0, 0), spawn_r, 5)
-    
-    #input
-
+   
     #update ticks
     if timer < 1:
         timer += DELTA_TIME
@@ -311,13 +332,5 @@ while True:
         instantiate_obstacle()
         ticks = 0
 
-    #update obstacles
-    for obstacle in obstacles:
-        obstacle.update()
-        obstacle.draw()
-
     #pygame closing
     pygame.display.update()
-
-    #debugging
-    #print(pygame.mouse.get_pos())
