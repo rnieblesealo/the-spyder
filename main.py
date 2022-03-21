@@ -45,40 +45,32 @@ def lerp(a = 0, b = 0, t = 0.125):
 
     return a + (t - 0) * (b - a) / (1 - 0)
 
-#region assets
 player = import_image('assets/player.png', 3)
-car_rect = player.get_rect()
-
 police = import_image('assets/police.png', 3)
 car_g = import_image('assets/car_g.png', 3)
 car_o = import_image('assets/car_o.png', 3)
 car_r = import_image('assets/car_r.png', 3)
 car_y = import_image('assets/car_y.png', 3)
-
-
 road = import_image('assets/road.png', 4)
-road_rect_a = road.get_rect()
-road_rect_b = road.get_rect()
+shadow = import_image('assets/shadow.png', 3)
 
-drop_shadow = import_image('assets/shadow.png', 3)
-drop_shadow.set_alpha(50)
+font = pygame.font.Font('assets/font.ttf', 40)
 
-#font = pygame.font.Font('assets/font.ttf', 32)
-#endregion
+shadow.set_alpha(50)
 
-#region lanes & vehicle spawns
+# --- Lanes & Obstacle Spawns ---
+
 lane_spacing = 0.835
 
 lane_c = Vector2(DISPLAY_SIZE[0] / 2, 400)
 lane_l = Vector2(lane_c.x - (lane_c.x / 2) * lane_spacing, lane_c.y)
 lane_r = Vector2(lane_c.x + (lane_c.x / 2) * lane_spacing, lane_c.y)
 
+lanes = (lane_l, lane_c, lane_r)
+
 spawn_c = Vector2(lane_c.x, 0)
 spawn_l = Vector2(lane_l.x, 0)
 spawn_r = Vector2(lane_r.x, 0)
-
-lanes = (lane_l, lane_c, lane_r)
-#endregion
 
 #region input
 class Direction(Enum):
@@ -154,7 +146,7 @@ class Player:
         
     def draw(self) -> None:
         #rotate dropshadow
-        r_shadow = pygame.transform.rotate(drop_shadow, self.rot) #NOTE --move shadow_r to classvar?
+        r_shadow = pygame.transform.rotate(shadow, self.rot) #NOTE --move shadow_r to classvar?
         
         #center rotated dropshadow rect
         r_shadow_rect = r_shadow.get_rect()
@@ -167,27 +159,44 @@ class Player:
         r_texture_rect = r_texture.get_rect()
         r_texture_rect.center = self.pos
 
+        # --- EXPERIMENTAL : OUTLINE ---
+        mask = pygame.mask.from_surface(r_texture)
+        mask_outline = mask.outline()
+        mask_surf = pygame.Surface(r_texture.get_size())
+        
+        for pixel in mask_outline:
+            mask_surf.set_at(pixel, (25, 25, 25))
+        
+        mask_surf.set_colorkey((0, 0, 0))
+        mask_surf_pos = Vector2(r_texture_rect.topleft)
+
+        DISPLAY.blit(mask_surf, (mask_surf_pos.x - 3, mask_surf_pos.y))
+        DISPLAY.blit(mask_surf, (mask_surf_pos.x + 3, mask_surf_pos.y))
+        DISPLAY.blit(mask_surf, (mask_surf_pos.x, mask_surf_pos.y - 3))
+        DISPLAY.blit(mask_surf, (mask_surf_pos.x, mask_surf_pos.y + 3))
+
         #draw dropshadow
         DISPLAY.blit(r_shadow, r_shadow_rect)
 
         #draw texture
         DISPLAY.blit(r_texture, r_texture_rect)
-#endregion
 
-#region road
+player = Player()
+
+# --- Road ---
+
+road_rect_a = road.get_rect()
+road_rect_b = road.get_rect()
+
 road_pos_a = Vector2(DISPLAY_SIZE[0] / 2, DISPLAY_SIZE[1] / 2)
 road_pos_b = road_pos_a - Vector2(0, road.get_height())
 
 road_vel = Vector2(0, 600)
 road_dsp = Vector2(0, road.get_height() * 2)
-#endregion
 
-#region obstacles
-class Entity:
-    """
-    simple class for a moving obstacle
-    """
-    
+# --- Obstacles ---
+
+class Obstacle:    
     texture: Surface = None
     rect: Rect = None
     
@@ -203,7 +212,7 @@ class Entity:
         self.pos = Vector2(start_pos)
         self.vel = Vector2(vel)
 
-        self.__drop_shadow_rect = drop_shadow.get_rect()
+        self.__drop_shadow_rect = shadow.get_rect()
 
     def update(self) -> None:
         #position (drop shadow)
@@ -215,14 +224,14 @@ class Entity:
 
     def draw(self) -> None:
         #drawing (drop shadow)
-        DISPLAY.blit(drop_shadow, self.__drop_shadow_rect)
+        DISPLAY.blit(shadow, self.__drop_shadow_rect)
 
         #drawing
         DISPLAY.blit(self.texture, self.rect)
 
 obstacle_assets = [police, car_g, car_o, car_r, car_y]
 obstacle_spawns = [Vector2(lane_c.x, -20), Vector2(lane_l.x, -20), Vector2(lane_r.x, -20)] #NOTE we spawn at -20 so cars spawn offscreen; it looks nicer
-obstacles: List[Entity] = []
+obstacles: List[Obstacle] = []
 
 timer = 0 #NOTE timer is aggregate of deltatime used to count towards one tick
 ticks = 0 #NOTE 1 tick == 1 second
@@ -233,15 +242,12 @@ def instantiate_obstacle() -> None:
     """
 
     obstacles.append(
-        Entity(
+        Obstacle(
             obstacle_assets[randint(0, len(obstacle_assets) - 1)],
             obstacle_spawns[randint(0, len(obstacle_spawns) - 1)], #TODO change this to spawnpoints!
             Vector2(0, 300)
         )
     )
-#endregion
-
-player = Player()
 
 while True:
     #pygame opening
@@ -274,12 +280,11 @@ while True:
     player.update()
     player.draw()
 
-    # #draw score
-    # score_text = font.render('1538', True, (255, 255, 255))
-    # score_text_rect = score_text.get_rect()
-    # score_text_rect.center = (DISPLAY_SIZE[0] / 2, 65)
-
-    # DISPLAY.blit(score_text, score_text_rect)
+    #draw score
+    score_text = font.render('941', True, (255, 255, 255))
+    score_text_rect = score_text.get_rect()
+    score_text_rect.center = (DISPLAY_SIZE[0] / 2, 65)
+    DISPLAY.blit(score_text, score_text_rect)
 
     # #draw lane positons --NOTE debug
     # pygame.draw.circle(DISPLAY, (255, 255, 255), lane_c, 5)
