@@ -8,17 +8,18 @@ from typing import List
 from random import randint
 from pygame import PixelArray, Surface, Rect
 from pygame.math import Vector2
-
+from pygame.mask import Mask
 pygame.init()
 
 DISPLAY_SIZE = (400, 500)
 DISPLAY = pygame.display.set_mode(DISPLAY_SIZE)
 CLOCK = pygame.time.Clock()
 
-#TODO Add score text outline
-#TODO Add scoring system
+#TODO [DONE] Add scoring system
+#TODO [DONE] Add gamestate
+#TODO Organize gamestate code
+#TODO Delete objects from obstacles list if they leave screen area
 #TODO Make road get faster as game progresses (Use a score threshold to increase difficulty)
-#TODO Add a consequence when the player dies
 
 def print_warning(n = "?"):
     """
@@ -47,6 +48,8 @@ def lerp(a = 0, b = 0, t = 0.125):
 
     return a + (t - 0) * (b - a) / (1 - 0)
 
+# --- Assets --- 
+
 player = import_image('assets/player.png', 3)
 police = import_image('assets/police.png', 3)
 car_g = import_image('assets/car_g.png', 3)
@@ -56,9 +59,26 @@ car_y = import_image('assets/car_y.png', 3)
 road = import_image('assets/road.png', 4)
 shadow = import_image('assets/shadow.png', 3)
 
-font = pygame.font.Font('assets/font.ttf', 40)
+font = pygame.font.Font('assets/font.ttf', 32)
 
 shadow.set_alpha(50)
+
+# --- Game Control ---
+
+class GameState(Enum):
+    IDLE = 0
+    GAME_ON = 1
+    GAME_OVER = 2
+
+state = GameState.IDLE
+
+timer = 0 #NOTE timer is aggregate of deltatime used to count towards one tick
+ticks = 0 #NOTE 1 tick == 1 second
+
+score = 0
+score_award = 10 #amt score given per score tick
+score_ticks = 2 #amt of ticks before score given
+score_ticks_t = score_ticks #temp current spawntick goal for next score
 
 # --- Lanes & Obstacle Spawns ---
 
@@ -96,7 +116,7 @@ class Player:
     pos: Vector2 = None
     rot = 0
 
-    outline_color = (200, 200, 200)
+    outline_color = (150, 150, 150)
     outline_width = 3 #keep below 5
 
     __pos: Vector2 = None
@@ -133,7 +153,17 @@ class Player:
         can_press_l = (self.current_lane > 0) and not self.__l_pressed
         can_press_r = (self.current_lane < len(lanes) - 1) and not self.__r_pressed
 
-        #left button input
+        #start game if gamestate is idle and any input is received
+        global state
+        if state == GameState.IDLE and (get_l or get_r):
+            print_warning("Starting Game!")
+            state = GameState.GAME_ON
+
+        #NOTE FOR DEBUGGING --end game if press X
+        if pygame.key.get_pressed()[pygame.K_x]:
+            state = GameState.GAME_OVER
+
+        #get left button input
         if get_l and can_press_l: 
             self.current_lane -= 1
             self.last_direction = Direction.RIGHT
@@ -143,7 +173,7 @@ class Player:
         elif not get_l:
             self.__l_pressed = False
         
-        #right button input
+        #get right button input
         if get_r and can_press_r:
             self.current_lane += 1
             self.last_direction = Direction.LEFT
@@ -196,7 +226,7 @@ class Player:
         r_texture_rect = r_texture.get_rect()
         r_texture_rect.center = self.pos
 
-        #self.draw_outline(r_texture_rect.topleft)
+        self.draw_outline(r_texture_rect.topleft)
 
         #draw dropshadow
         DISPLAY.blit(r_shadow, r_shadow_rect)
@@ -219,6 +249,13 @@ road_dsp = Vector2(0, road.get_height() * 2)
 
 # --- Obstacles ---
 
+obstacle_assets = [police, car_g, car_o, car_r, car_y]
+obstacle_spawns = [Vector2(lane_c.x, -20), Vector2(lane_l.x, -20), Vector2(lane_r.x, -20)] #NOTE we spawn at -20 so cars spawn offscreen
+obstacles = []
+
+spawn_ticks = 1 #amt of ticks before a vehicle spawns
+spawn_ticks_t = spawn_ticks #temp current spawntick goal for next vehicle to spawn
+
 class Obstacle:    
     texture: Surface = None
     rect: Rect = None
@@ -238,6 +275,12 @@ class Obstacle:
         self.__drop_shadow_rect = shadow.get_rect()
 
     def update(self) -> None:
+        #delete this obstacle if out of screen bounds (NOTE + 20 is just for ensuring object doesn't die onscreen no matter the size)
+        if self.pos.y >= DISPLAY_SIZE[1] + 20:
+            global obstacles
+            obstacles.remove(self)
+            return
+        
         #position (drop shadow)
         self.__drop_shadow_rect.center = self.pos
         
@@ -251,13 +294,6 @@ class Obstacle:
 
         #drawing
         DISPLAY.blit(self.texture, self.rect)
-
-obstacle_assets = [police, car_g, car_o, car_r, car_y]
-obstacle_spawns = [Vector2(lane_c.x, -20), Vector2(lane_l.x, -20), Vector2(lane_r.x, -20)] #NOTE we spawn at -20 so cars spawn offscreen; it looks nicer
-obstacles: List[Obstacle] = []
-
-timer = 0 #NOTE timer is aggregate of deltatime used to count towards one tick
-ticks = 0 #NOTE 1 tick == 1 second
 
 def instantiate_obstacle() -> None:
     """
@@ -273,6 +309,16 @@ def instantiate_obstacle() -> None:
     )
 
 # GAME LOOP ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#temp, delete || move later
+s_text = str(score)
+s_last_text = None
+
+st_outl_width = 5
+
+st: Surface = None
+st_outl: Surface = None
+st_rect: Rect = None
 
 while True:
     #pygame opening
@@ -290,8 +336,10 @@ while True:
     road_rect_a.center = road_pos_a
     road_rect_b.center = road_pos_b
     
-    road_pos_a += road_vel * DELTA_TIME
-    road_pos_b += road_vel * DELTA_TIME
+    #move road if game not over
+    if state != GameState.GAME_OVER:
+        road_pos_a += road_vel * DELTA_TIME
+        road_pos_b += road_vel * DELTA_TIME
     
     if road_rect_a.y >= DISPLAY_SIZE[1]:
         road_pos_a -= road_dsp
@@ -302,35 +350,80 @@ while True:
     DISPLAY.blit(road, road_rect_a)
     DISPLAY.blit(road, road_rect_b)
 
-    #update player
-    player.update()
+    #if game not over, update player and draw obstacles
+    if state != GameState.GAME_OVER:
+        player.update()
+
+    for obstacle in obstacles:
+        obstacle.draw()
+    
+    #always draw player
     player.draw()
     
-    #update obstacles
-    for obstacle in obstacles:
-        obstacle.update()
-        obstacle.draw()
+    #clear obstacles list when idle
+    if state == GameState.IDLE:            
+        obstacles.clear()
 
-    #draw score
-    score_text = font.render('Sample', True, (255, 255, 255))
-    score_text_rect = score_text.get_rect()
-    score_text_rect.center = (DISPLAY_SIZE[0] / 2, 65)
-    score_text_pos = score_text_rect.topleft
+    if state == GameState.GAME_ON:
+        #update obstacles
+        for obstacle in obstacles:
+            obstacle.update()
+        
+        #update score txt
+        s_text = str(score)
 
-    DISPLAY.blit(score_text, score_text_rect)
-   
-    #update ticks
-    if timer < 1:
-        timer += DELTA_TIME
+        #remake score txt graphic if score txt changed
+        if s_text != s_last_text:
+            s_last_text = s_text
+
+            #make score txt
+            st = font.render(s_text, False, (255, 255, 255))
+
+            #make score txt outline
+            st_outl = font.render(s_text, False, (25, 25, 25))
+            
+            #maek score txt rect
+            st_rect = st.get_rect()
+            st_rect.center = (DISPLAY_SIZE[0] / 2, 65)
+            st_pos = st_rect.topleft
+        
+        #draw score txt outline
+        DISPLAY.blit(st_outl, (st_pos[0] - st_outl_width, st_pos[1]))
+        DISPLAY.blit(st_outl, (st_pos[0] + st_outl_width, st_pos[1]))
+        DISPLAY.blit(st_outl, (st_pos[0], st_pos[1] - st_outl_width))
+        DISPLAY.blit(st_outl, (st_pos[0], st_pos[1] + st_outl_width))
+
+        #draw score txt
+        DISPLAY.blit(st, st_rect)
+    
+        #update ticks
+        if timer < 0.5:
+            timer += DELTA_TIME
+
+        else:
+            ticks += 1
+            # print("Ticks: ", ticks)
+            timer = 0
+
+        #spawn obstacles
+        if ticks == spawn_ticks_t:
+            instantiate_obstacle()
+            spawn_ticks_t += spawn_ticks
+
+        #give score
+        if ticks == score_ticks_t:
+            score += score_award
+            score_ticks_t += score_ticks
 
     else:
-        ticks += 1
-        timer = 0
-
-    #spawn obstacles
-    if ticks == 1:
-        instantiate_obstacle()
+        score = 0
         ticks = 0
+        spawn_ticks_t = 0
+        score_ticks_t = 0
 
+    #NOTE FOR DEBUGGING --switch gamestate to idle if press I
+    if pygame.key.get_pressed()[pygame.K_i]:
+        state = GameState.IDLE
+        
     #pygame closing
     pygame.display.update()
