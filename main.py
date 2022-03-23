@@ -106,6 +106,86 @@ class Direction(Enum):
     LEFT = -1
     RIGHT = 1
 
+# --- Road ---
+
+road_rect_a = road.get_rect()
+road_rect_b = road.get_rect()
+
+road_pos_a = Vector2(DISPLAY_SIZE[0] / 2, DISPLAY_SIZE[1] / 2)
+road_pos_b = road_pos_a - Vector2(0, road.get_height())
+
+road_vel = Vector2(0, 600)
+road_dsp = Vector2(0, road.get_height() * 2)
+
+# --- Obstacles ---
+
+obstacle_assets = [police, car_g, car_o, car_r, car_y]
+obstacle_spawns = [Vector2(lane_c.x, -50), Vector2(lane_l.x, -50), Vector2(lane_r.x, -50)] #NOTE we spawn at -20 so cars spawn offscreen
+obstacles = []
+
+spawn_ticks = 1 #amt of ticks before a vehicle spawns
+spawn_ticks_t = spawn_ticks #temp current spawntick goal for next vehicle to spawn
+
+class Obstacle:    
+    texture: Surface = None
+    rect: Rect = None
+    
+    pos: Vector2 = None
+    vel: Vector2 = None
+
+    __drop_shadow_rect: Rect = None
+
+    def __init__(self, texture: Surface, start_pos: Vector2, vel: Vector2) -> None:
+        self.texture = texture.copy()
+        self.rect = texture.get_rect()
+
+        self.pos = Vector2(start_pos)
+        self.vel = Vector2(vel)
+
+        self.__drop_shadow_rect = shadow.get_rect()
+
+        #initialize rects --NOTE this prevents flickering when cars are instantiated!
+        self.rect.center = self.pos
+        self.__drop_shadow_rect.center = self.pos
+
+    def update(self) -> None:
+        #delete this obstacle if out of screen bounds (NOTE +100 is just for ensuring object doesn't die onscreen no matter the size)
+        if self.pos.y >= DISPLAY_SIZE[1] + 100:
+            global obstacles
+            obstacles.remove(self)
+            del self
+            return
+        
+        #position (drop shadow)
+        self.__drop_shadow_rect.center = self.pos
+        
+        #position (texture)
+        self.pos += self.vel * DELTA_TIME
+        self.rect.center = self.pos
+
+    def draw(self) -> None:        
+        # #draw hitbox --NOTE for debugging
+        # pygame.draw.rect(DISPLAY, (0, 0, 255), self.rect)
+        
+        #drawing (drop shadow)
+        DISPLAY.blit(shadow, self.__drop_shadow_rect)
+
+        #drawing (texture)
+        DISPLAY.blit(self.texture, self.rect)
+
+def instantiate_obstacle() -> None:
+    """
+    creates a moving obstacle
+    """
+
+    obstacles.append(
+        Obstacle(
+            obstacle_assets[randint(0, len(obstacle_assets) - 1)],
+            obstacle_spawns[randint(0, len(obstacle_spawns) - 1)], #TODO change this to spawnpoints!
+            Vector2(0, 300)
+        )
+    )
+
 # --- Player ---
 
 class Player:
@@ -115,6 +195,7 @@ class Player:
 
     texture: Surface = None
     rect: Rect = None
+    rect_fix = -10 #adjustment applied to rect w and h so its smaller/bigger
 
     current_lane = 1
     last_direction: Direction = Direction.RIGHT
@@ -135,6 +216,7 @@ class Player:
 
     def __init__(self, texture = player, start_lane = 1) -> None:
         self.texture = texture.copy()
+        self.rect = Rect(0, 0, self.texture.get_width() + self.rect_fix, self.texture.get_height() + self.rect_fix)
 
         self.current_lane = start_lane
         self.pos = Vector2(lanes[self.current_lane])
@@ -217,6 +299,16 @@ class Player:
         self.rot = lerp(self.rot, self.__rot, 0.125 * DELTA_TIME * 60)
         self.pos = lerp(self.pos, self.__pos, 0.125 * DELTA_TIME * 60)
 
+        #update rect (NOTE this isn't used for drawing, it's used for collision!)
+        self.rect.center = self.pos
+
+        #check for collision
+        global state
+        if state == GameState.GAME_ON:
+            for obstacle in obstacles:
+                if self.rect.colliderect(obstacle.rect):
+                    state = GameState.GAME_OVER
+
         #input
         self.get_input()
     
@@ -238,6 +330,9 @@ class Player:
         DISPLAY.blit(r_outline, (r_outline_pos[0], r_outline_pos[1] + self.outline_width))
 
     def draw(self) -> None:
+        # #draw hitbox --NOTE for debugging
+        # pygame.draw.rect(DISPLAY, (0, 255, 0), self.rect)
+        
         #rotate dropshadow
         r_shadow = pygame.transform.rotate(shadow, self.rot) #NOTE --move shadow_r to classvar?
         
@@ -252,7 +347,7 @@ class Player:
         r_texture_rect = r_texture.get_rect()
         r_texture_rect.center = self.pos
 
-        self.draw_outline(r_texture_rect.topleft)
+        #self.draw_outline(r_texture_rect.topleft)
 
         #draw dropshadow
         DISPLAY.blit(r_shadow, r_shadow_rect)
@@ -261,83 +356,6 @@ class Player:
         DISPLAY.blit(r_texture, r_texture_rect)
 
 player = Player()
-
-# --- Road ---
-
-road_rect_a = road.get_rect()
-road_rect_b = road.get_rect()
-
-road_pos_a = Vector2(DISPLAY_SIZE[0] / 2, DISPLAY_SIZE[1] / 2)
-road_pos_b = road_pos_a - Vector2(0, road.get_height())
-
-road_vel = Vector2(0, 600)
-road_dsp = Vector2(0, road.get_height() * 2)
-
-# --- Obstacles ---
-
-obstacle_assets = [police, car_g, car_o, car_r, car_y]
-obstacle_spawns = [Vector2(lane_c.x, -50), Vector2(lane_l.x, -50), Vector2(lane_r.x, -50)] #NOTE we spawn at -20 so cars spawn offscreen
-obstacles = []
-
-spawn_ticks = 1 #amt of ticks before a vehicle spawns
-spawn_ticks_t = spawn_ticks #temp current spawntick goal for next vehicle to spawn
-
-class Obstacle:    
-    texture: Surface = None
-    rect: Rect = None
-    
-    pos: Vector2 = None
-    vel: Vector2 = None
-
-    __drop_shadow_rect: Rect = None
-
-    def __init__(self, texture: Surface, start_pos: Vector2, vel: Vector2) -> None:
-        self.texture = texture.copy()
-        self.rect = texture.get_rect()
-
-        self.pos = Vector2(start_pos)
-        self.vel = Vector2(vel)
-
-        self.__drop_shadow_rect = shadow.get_rect()
-
-        #initialize rects --NOTE this prevents flickering when cars are instantiated!
-        self.rect.center = self.pos
-        self.__drop_shadow_rect.center = self.pos
-
-    def update(self) -> None:
-        #delete this obstacle if out of screen bounds (NOTE +100 is just for ensuring object doesn't die onscreen no matter the size)
-        if self.pos.y >= DISPLAY_SIZE[1] + 100:
-            global obstacles
-            obstacles.remove(self)
-            del self
-            return
-        
-        #position (drop shadow)
-        self.__drop_shadow_rect.center = self.pos
-        
-        #position
-        self.pos += self.vel * DELTA_TIME
-        self.rect.center = (int(self.pos.x), int(self.pos.y))
-
-    def draw(self) -> None:        
-        #drawing (drop shadow)
-        DISPLAY.blit(shadow, self.__drop_shadow_rect)
-
-        #drawing
-        DISPLAY.blit(self.texture, self.rect)
-
-def instantiate_obstacle() -> None:
-    """
-    creates a moving obstacle
-    """
-
-    obstacles.append(
-        Obstacle(
-            obstacle_assets[randint(0, len(obstacle_assets) - 1)],
-            obstacle_spawns[randint(0, len(obstacle_spawns) - 1)], #TODO change this to spawnpoints!
-            Vector2(0, 300)
-        )
-    )
 
 # GAME LOOP ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -385,6 +403,7 @@ while True:
     if state != GameState.GAME_OVER:
         player.update()
 
+    #always draw obstacles in obstacles list
     for obstacle in obstacles:
         obstacle.draw()
     
@@ -439,7 +458,6 @@ while True:
 
         else:
             ticks += 1
-            # print("Ticks: ", ticks)
             timer = 0
 
         #spawn obstacles
