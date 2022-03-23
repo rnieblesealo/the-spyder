@@ -256,7 +256,7 @@ road_dsp = Vector2(0, road.get_height() * 2)
 # --- Obstacles ---
 
 obstacle_assets = [police, car_g, car_o, car_r, car_y]
-obstacle_spawns = [Vector2(lane_c.x, -20), Vector2(lane_l.x, -20), Vector2(lane_r.x, -20)] #NOTE we spawn at -20 so cars spawn offscreen
+obstacle_spawns = [Vector2(lane_c.x, -50), Vector2(lane_l.x, -50), Vector2(lane_r.x, -50)] #NOTE we spawn at -20 so cars spawn offscreen
 obstacles = []
 
 spawn_ticks = 1 #amt of ticks before a vehicle spawns
@@ -285,8 +285,8 @@ class Obstacle:
         self.__drop_shadow_rect.center = self.pos
 
     def update(self) -> None:
-        #delete this obstacle if out of screen bounds (NOTE + 20 is just for ensuring object doesn't die onscreen no matter the size)
-        if self.pos.y >= DISPLAY_SIZE[1] + 20:
+        #delete this obstacle if out of screen bounds (NOTE +100 is just for ensuring object doesn't die onscreen no matter the size)
+        if self.pos.y >= DISPLAY_SIZE[1] + 100:
             global obstacles
             obstacles.remove(self)
             del self
