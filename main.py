@@ -152,6 +152,22 @@ class Player:
         
         self.__outline = mask_surf_pixels.make_surface()
 
+    def reset_pos(self) -> None:
+        """
+        Resets the player's position and rotation to the central lane.
+        """
+        
+        if self.current_lane == 1:
+            return
+
+        self.current_lane = 1
+        
+        self.pos = lanes[1]
+        self.rot = 0
+        
+        self.__pos = lanes[1]
+        self.__rot = 0
+
     def get_input(self) -> None:
         get_l = pygame.key.get_pressed()[pygame.K_a]
         get_r = pygame.key.get_pressed()[pygame.K_d]
@@ -159,11 +175,15 @@ class Player:
         can_press_l = (self.current_lane > 0) and not self.__l_pressed
         can_press_r = (self.current_lane < len(lanes) - 1) and not self.__r_pressed
 
-        #start game if gamestate is idle and any input is received
         global state
-        if state == GameState.IDLE and (get_l or get_r):
-            print_warning("Starting Game!")
-            state = GameState.GAME_ON
+        if state == GameState.IDLE:
+            #reset position to center lane when game is idle
+            self.reset_pos()
+
+            #start game if input is received
+            if get_l or get_r:
+                print_warning("Starting Game!")
+                state = GameState.GAME_ON
 
         #NOTE FOR DEBUGGING --end game if press X
         if pygame.key.get_pressed()[pygame.K_x]:
