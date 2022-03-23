@@ -1,25 +1,24 @@
 import pygame
-import numpy
 import sys
 import os
 
 from enum import Enum
-from typing import List
 from random import randint
 from pygame import PixelArray, Surface, Rect
 from pygame.math import Vector2
-from pygame.mask import Mask
+
+#TODO [DONE] Add scoring system
+#TODO [DONE] Add gamestate
+#TODO [DONE] Delete objects from obstacles list if they leave screen area
+#TODO Fix title logo not showing up
+#TODO Organize gamestate code
+#TODO Make road get faster as game progresses (Use a score threshold to increase difficulty)
+
 pygame.init()
 
 DISPLAY_SIZE = (400, 500)
 DISPLAY = pygame.display.set_mode(DISPLAY_SIZE)
 CLOCK = pygame.time.Clock()
-
-#TODO [DONE] Add scoring system
-#TODO [DONE] Add gamestate
-#TODO Organize gamestate code
-#TODO Delete objects from obstacles list if they leave screen area
-#TODO Make road get faster as game progresses (Use a score threshold to increase difficulty)
 
 def print_warning(n = "?"):
     """
@@ -48,7 +47,8 @@ def lerp(a = 0, b = 0, t = 0.125):
 
     return a + (t - 0) * (b - a) / (1 - 0)
 
-# --- Assets --- 
+
+# --- Asset Importing --- 
 
 player = import_image('assets/player.png', 3)
 police = import_image('assets/police.png', 3)
@@ -58,10 +58,16 @@ car_r = import_image('assets/car_r.png', 3)
 car_y = import_image('assets/car_y.png', 3)
 road = import_image('assets/road.png', 4)
 shadow = import_image('assets/shadow.png', 3)
+logo = import_image('assets/logo.png')
 
 font = pygame.font.Font('assets/font.ttf', 32)
 
 shadow.set_alpha(50)
+
+# --- Secondary Initialization ----
+
+pygame.display.set_caption('The Spyder')
+pygame.display.set_icon(logo)
 
 # --- Game Control ---
 
@@ -274,11 +280,16 @@ class Obstacle:
 
         self.__drop_shadow_rect = shadow.get_rect()
 
+        #initialize rects --NOTE this prevents flickering when cars are instantiated!
+        self.rect.center = self.pos
+        self.__drop_shadow_rect.center = self.pos
+
     def update(self) -> None:
         #delete this obstacle if out of screen bounds (NOTE + 20 is just for ensuring object doesn't die onscreen no matter the size)
         if self.pos.y >= DISPLAY_SIZE[1] + 20:
             global obstacles
             obstacles.remove(self)
+            del self
             return
         
         #position (drop shadow)
@@ -286,9 +297,9 @@ class Obstacle:
         
         #position
         self.pos += self.vel * DELTA_TIME
-        self.rect.center = self.pos
+        self.rect.center = (int(self.pos.x), int(self.pos.y))
 
-    def draw(self) -> None:
+    def draw(self) -> None:        
         #drawing (drop shadow)
         DISPLAY.blit(shadow, self.__drop_shadow_rect)
 
@@ -360,9 +371,15 @@ while True:
     #always draw player
     player.draw()
     
-    #clear obstacles list when idle
+    #clear obstacles list when idle and draw logo #TODO --finish logo drawing!
     if state == GameState.IDLE:            
-        obstacles.clear()
+        if len(obstacles) != 0:
+            obstacles.clear()
+
+        logo_rect = logo.get_rect()
+        logo_rect.center = (DISPLAY_SIZE[0] / 2, 150)
+        
+        DISPLAY.blit(logo, logo_rect)
 
     if state == GameState.GAME_ON:
         #update obstacles
@@ -418,12 +435,12 @@ while True:
     else:
         score = 0
         ticks = 0
-        spawn_ticks_t = 0
-        score_ticks_t = 0
+        spawn_ticks_t = spawn_ticks
+        score_ticks_t = score_ticks
 
     #NOTE FOR DEBUGGING --switch gamestate to idle if press I
     if pygame.key.get_pressed()[pygame.K_i]:
         state = GameState.IDLE
-        
+
     #pygame closing
     pygame.display.update()
