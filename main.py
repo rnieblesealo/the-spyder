@@ -81,7 +81,7 @@ class GameState(Enum):
     GAME_ON = 1
     GAME_OVER = 2
 
-def get_highscore() -> int:
+def get_highscore(in_int = False) -> int:
     """
     gets high score from save info (save.txt)
     score should be formatted as: h_score=[HIGH SCORE]
@@ -94,7 +94,7 @@ def get_highscore() -> int:
         for line in save:
             if 'h_score=' in line:
                 data = line.split('=')
-                return data[1]
+                return data[1] if not in_int else int(data[1])
         return None
                 
 state = GameState.IDLE
@@ -333,14 +333,15 @@ class Player:
         if state == GameState.GAME_ON:
             for obstacle in obstacles:
                 if self.rect.colliderect(obstacle.rect):
-                    #write new highscore before changing gamestate
-                    with open('save.txt', 'w+') as save:
-                        save.truncate(0)
-                        save.write('h_score={H}'.format(H=score))
-                        
-                    #change global high score to new one
-                    global high_score
-                    high_score = get_highscore()
+                    #write new highscore before changing gamestate if we beat our last highscore
+                    if score > get_highscore(in_int=True):
+                        with open('save.txt', 'w+') as save:
+                            save.truncate(0)
+                            save.write('h_score={H}'.format(H=score))
+                            
+                        #change global high score to new one
+                        global high_score
+                        high_score = get_highscore()
                     
                     state = GameState.GAME_OVER
                     
