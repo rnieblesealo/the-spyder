@@ -48,7 +48,6 @@ def lerp(a = 0, b = 0, t = 0.125):
 
     return a + (t - 0) * (b - a) / (1 - 0)
 
-
 # --- Asset Importing --- 
 
 player = import_image('assets/player.png', 3)
@@ -62,7 +61,8 @@ shadow = import_image('assets/shadow.png', 3)
 logo = import_image('assets/logo.png')
 game_over = import_image('assets/game_over.png')
 
-font = pygame.font.Font('assets/font.ttf', 32)
+font = pygame.font.Font('assets/font.ttf', 32) #big version of font
+font_s = pygame.font.Font('assets/font.ttf', 16) #small version of font
 
 p_switch = pygame.mixer.Sound('assets/switch.wav')
 p_crash = pygame.mixer.Sound('assets/crash.wav')
@@ -81,10 +81,29 @@ class GameState(Enum):
     GAME_ON = 1
     GAME_OVER = 2
 
+def get_highscore() -> int:
+    """
+    gets high score from save info (save.txt)
+    score should be formatted as: h_score=[HIGH SCORE]
+    """
+    
+    if not os.path.exists('save.txt'):
+        return None
+    
+    with open('save.txt', 'r') as save:
+        for line in save:
+            if 'h_score=' in line:
+                data = line.split('=')
+                return data[1]
+        return None
+                
 state = GameState.IDLE
 
 timer = 0 #NOTE timer is aggregate of deltatime used to count towards one tick
 ticks = 0 #NOTE 1 tick == 0.5 second
+
+high_score = get_highscore()
+print(high_score)
 
 score = 0 #current score (base is 0)
 score_incr = 10 #amt score given per score tick
@@ -276,10 +295,6 @@ class Player:
                 print_warning("Starting Game!")
                 state = GameState.GAME_ON
 
-        #NOTE FOR DEBUGGING --end game if press X
-        if pygame.key.get_pressed()[pygame.K_x]:
-            state = GameState.GAME_OVER
-
         #get left button input
         if get_l and can_press_l: 
             self.current_lane -= 1
@@ -313,12 +328,22 @@ class Player:
         #update rect (NOTE this isn't used for drawing, it's used for collision!)
         self.rect.center = self.pos
 
-        #check for collision
+        #check for collision & gameover event handle
         global state
         if state == GameState.GAME_ON:
             for obstacle in obstacles:
                 if self.rect.colliderect(obstacle.rect):
+                    #write new highscore before changing gamestate
+                    with open('save.txt', 'w+') as save:
+                        save.truncate(0)
+                        save.write('h_score={H}'.format(H=score))
+                        
+                    #change global high score to new one
+                    global high_score
+                    high_score = get_highscore()
+                    
                     state = GameState.GAME_OVER
+                    
                     p_crash.play()
 
         #input
@@ -425,15 +450,24 @@ while True:
     #always draw player
     player.draw()
     
-    #clear obstacles list when idle and draw logo #TODO --finish logo drawing!
     if state == GameState.IDLE:            
+        #clear obstacles list when idle
         if len(obstacles) != 0:
             obstacles.clear()
 
+        #draw logo
         logo_rect = logo.get_rect()
         logo_rect.center = (DISPLAY_SIZE[0] / 2, 150)
         
         DISPLAY.blit(logo, logo_rect)
+
+        #show highscore if we have one
+        if high_score != None:
+            hs_text = font_s.render('High Score: {H}'.format(H=high_score), False, (197, 197, 197))
+            hs_text_rect = hs_text.get_rect()
+            hs_text_rect.center = (DISPLAY_SIZE[0] / 2, 310)
+
+            DISPLAY.blit(hs_text, hs_text_rect)
 
     if state == GameState.GAME_ON:
         #update obstacles
@@ -509,6 +543,8 @@ while True:
     #NOTE FOR DEBUGGING --switch gamestate to idle if press I
     if pygame.key.get_pressed()[pygame.K_i]:
         state = GameState.IDLE
+
+    print(pygame.mouse.get_pos(0))
 
     #pygame closing
     pygame.display.update()
