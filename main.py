@@ -10,7 +10,7 @@ from pygame.math import Vector2
 #TODO [DONE] Add scoring system
 #TODO [DONE] Add gamestate
 #TODO [DONE] Delete objects from obstacles list if they leave screen area
-#TODO Fix title logo not showing up
+#TODO [DONE] Fix title logo not showing up
 #TODO Organize gamestate code
 #TODO Make road get faster as game progresses (Use a score threshold to increase difficulty)
 
@@ -84,12 +84,18 @@ class GameState(Enum):
 state = GameState.IDLE
 
 timer = 0 #NOTE timer is aggregate of deltatime used to count towards one tick
-ticks = 0 #NOTE 1 tick == 1 second
+ticks = 0 #NOTE 1 tick == 0.5 second
 
-score = 0
-score_award = 10 #amt score given per score tick
-score_ticks = 2 #amt of ticks before score given
-score_ticks_t = score_ticks #temp current spawntick goal for next score
+score = 0 #current score (base is 0)
+score_incr = 10 #amt score given per score tick
+score_ticks = 2 #amt of ticks before score tick
+score_ticks_t = score_ticks #temp current tick goal for score incr
+
+base_speed = 500
+speed = base_speed #current speed
+speed_incr = 75 #speed increased per speed tick
+speed_ticks = 12 #amt of ticks before speed tick
+speed_ticks_t = speed_ticks #temp current tick goal for speed incr
 
 # --- Lanes & Obstacle Spawns ---
 
@@ -119,8 +125,8 @@ road_rect_b = road.get_rect()
 road_pos_a = Vector2(DISPLAY_SIZE[0] / 2, DISPLAY_SIZE[1] / 2)
 road_pos_b = road_pos_a - Vector2(0, road.get_height())
 
-road_vel = Vector2(0, 600)
-road_dsp = Vector2(0, road.get_height() * 2)
+road_vel = speed #current road vel
+road_dsp = road.get_height() * 2
 
 # --- Obstacles ---
 
@@ -136,16 +142,15 @@ class Obstacle:
     rect: Rect = None
     
     pos: Vector2 = None
-    vel: Vector2 = None
+    speed = 300
 
     __drop_shadow_rect: Rect = None
 
-    def __init__(self, texture: Surface, start_pos: Vector2, vel: Vector2) -> None:
+    def __init__(self, texture: Surface, start_pos: Vector2) -> None:
         self.texture = texture.copy()
         self.rect = texture.get_rect()
 
         self.pos = Vector2(start_pos)
-        self.vel = Vector2(vel)
 
         self.__drop_shadow_rect = shadow.get_rect()
 
@@ -165,7 +170,7 @@ class Obstacle:
         self.__drop_shadow_rect.center = self.pos
         
         #position (texture)
-        self.pos += self.vel * DELTA_TIME
+        self.pos.y += (self.speed + (speed - base_speed)) * DELTA_TIME #y pos vel increment is obstacle base speed (300) + the difference between current game speed and base game speed
         self.rect.center = self.pos
 
     def draw(self) -> None:        
@@ -187,7 +192,6 @@ def instantiate_obstacle() -> None:
         Obstacle(
             obstacle_assets[randint(0, len(obstacle_assets) - 1)],
             obstacle_spawns[randint(0, len(obstacle_spawns) - 1)], #TODO change this to spawnpoints!
-            Vector2(0, 300)
         )
     )
 
@@ -208,7 +212,7 @@ class Player:
     pos: Vector2 = None
     rot = 0
 
-    outline_color = (150, 150, 150)
+    outline_color = (197, 197, 197)
     outline_width = 3 #keep below 5
 
     __pos: Vector2 = None
@@ -355,10 +359,11 @@ class Player:
         r_texture_rect = r_texture.get_rect()
         r_texture_rect.center = self.pos
 
-        #self.draw_outline(r_texture_rect.topleft)
-
         #draw dropshadow
         DISPLAY.blit(r_shadow, r_shadow_rect)
+        
+        #draw outline
+        self.draw_outline(r_texture_rect.topleft)
 
         #draw texture
         DISPLAY.blit(r_texture, r_texture_rect)
@@ -395,14 +400,16 @@ while True:
     
     #move road if game not over
     if state != GameState.GAME_OVER:
-        road_pos_a += road_vel * DELTA_TIME
-        road_pos_b += road_vel * DELTA_TIME
+        road_vel = speed
+        
+        road_pos_a.y += road_vel * DELTA_TIME
+        road_pos_b.y += road_vel * DELTA_TIME
     
     if road_rect_a.y >= DISPLAY_SIZE[1]:
-        road_pos_a -= road_dsp
+        road_pos_a.y -= road_dsp
 
     if road_rect_b.y >= DISPLAY_SIZE[1]:
-        road_pos_b -= road_dsp
+        road_pos_b.y -= road_dsp
 
     DISPLAY.blit(road, road_rect_a)
     DISPLAY.blit(road, road_rect_b)
@@ -475,14 +482,22 @@ while True:
 
         #give score
         if ticks == score_ticks_t:
-            score += score_award
+            score += score_incr
             score_ticks_t += score_ticks
 
+        #speed up road
+        if ticks == speed_ticks_t:
+            speed += speed_incr
+            speed_ticks_t += speed_ticks
+
+    #reset values after death
     else:
-        score = 0
         ticks = 0
+        score = 0
+        speed = base_speed
         spawn_ticks_t = spawn_ticks
         score_ticks_t = score_ticks
+        speed_ticks_t = speed_ticks
 
     if state == GameState.GAME_OVER:
         #draw game over
