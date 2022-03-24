@@ -7,13 +7,6 @@ from random import randint
 from pygame import PixelArray, Surface, Rect
 from pygame.math import Vector2
 
-#TODO [DONE] Add scoring system
-#TODO [DONE] Add gamestate
-#TODO [DONE] Delete objects from obstacles list if they leave screen area
-#TODO [DONE] Fix title logo not showing up
-#TODO Organize gamestate code
-#TODO Make road get faster as game progresses (Use a score threshold to increase difficulty)
-
 pygame.init()
 pygame.mixer.init()
 
@@ -84,7 +77,7 @@ class GameState(Enum):
 def get_highscore(in_int = False) -> int:
     """
     gets high score from save info (save.txt)
-    score should be formatted as: h_score=[HIGH SCORE]
+    score should be formatted as: h_score={HIGH SCORE}
     """
     
     if not os.path.exists('save.txt'):
@@ -103,7 +96,6 @@ timer = 0 #NOTE timer is aggregate of deltatime used to count towards one tick
 ticks = 0 #NOTE 1 tick == 0.5 second
 
 high_score = get_highscore()
-print(high_score)
 
 score = 0 #current score (base is 0)
 score_incr = 10 #amt score given per score tick
@@ -231,7 +223,7 @@ class Player:
     pos: Vector2 = None
     rot = 0
 
-    outline_color = (197, 197, 197)
+    outline_color = (50, 50, 50)
     outline_width = 3 #keep below 5
 
     __pos: Vector2 = None
@@ -544,8 +536,6 @@ while True:
     #NOTE FOR DEBUGGING --switch gamestate to idle if press I
     if pygame.key.get_pressed()[pygame.K_i]:
         state = GameState.IDLE
-
-    print(pygame.mouse.get_pos(0))
 
     #pygame closing
     pygame.display.update()
