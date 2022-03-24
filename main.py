@@ -15,6 +15,7 @@ from pygame.math import Vector2
 #TODO Make road get faster as game progresses (Use a score threshold to increase difficulty)
 
 pygame.init()
+pygame.mixer.init()
 
 DISPLAY_SIZE = (400, 500)
 DISPLAY = pygame.display.set_mode(DISPLAY_SIZE)
@@ -59,8 +60,12 @@ car_y = import_image('assets/car_y.png', 3)
 road = import_image('assets/road.png', 4)
 shadow = import_image('assets/shadow.png', 3)
 logo = import_image('assets/logo.png')
+game_over = import_image('assets/game_over.png')
 
 font = pygame.font.Font('assets/font.ttf', 32)
+
+p_switch = pygame.mixer.Sound('assets/switch.wav')
+p_crash = pygame.mixer.Sound('assets/crash.wav')
 
 shadow.set_alpha(50)
 
@@ -195,7 +200,7 @@ class Player:
 
     texture: Surface = None
     rect: Rect = None
-    rect_fix = -10 #adjustment applied to rect w and h so its smaller/bigger
+    rect_fix = -15 #adjustment applied to rect w and h so its smaller/bigger
 
     current_lane = 1
     last_direction: Direction = Direction.RIGHT
@@ -275,6 +280,7 @@ class Player:
         if get_l and can_press_l: 
             self.current_lane -= 1
             self.last_direction = Direction.RIGHT
+            p_switch.play()
             
             self.__l_pressed = True
         
@@ -285,13 +291,14 @@ class Player:
         if get_r and can_press_r:
             self.current_lane += 1
             self.last_direction = Direction.LEFT
+            p_switch.play()
             
             self.__r_pressed = True
 
         elif not get_r:
             self.__r_pressed = False
 
-    def update(self) -> None:        
+    def update(self) -> None:       
         #position & rotate
         self.__rot = Vector2.magnitude(lanes[self.current_lane] - self.pos) * 0.75 * self.last_direction.value
         self.__pos = lanes[self.current_lane]
@@ -308,6 +315,7 @@ class Player:
             for obstacle in obstacles:
                 if self.rect.colliderect(obstacle.rect):
                     state = GameState.GAME_OVER
+                    p_crash.play()
 
         #input
         self.get_input()
@@ -475,6 +483,13 @@ while True:
         ticks = 0
         spawn_ticks_t = spawn_ticks
         score_ticks_t = score_ticks
+
+    if state == GameState.GAME_OVER:
+        #draw game over
+        go_rect = game_over.get_rect()
+        go_rect.center = (DISPLAY_SIZE[0] / 2, 150)
+        
+        DISPLAY.blit(game_over, go_rect)
 
     #NOTE FOR DEBUGGING --switch gamestate to idle if press I
     if pygame.key.get_pressed()[pygame.K_i]:
