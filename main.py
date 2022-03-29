@@ -104,8 +104,8 @@ score_ticks_t = score_ticks #temp current tick goal for score incr
 
 base_speed = 500
 speed = base_speed #current speed
-speed_incr = 75 #speed increased per speed tick
-speed_ticks = 12 #amt of ticks before speed tick
+speed_incr = 60 #speed increased per speed tick
+speed_ticks = 15 #amt of ticks before speed tick
 speed_ticks_t = speed_ticks #temp current tick goal for speed incr
 
 # --- Lanes & Obstacle Spawns ---
@@ -223,7 +223,7 @@ class Player:
     pos: Vector2 = None
     rot = 0
 
-    outline_color = (50, 50, 50)
+    outline_color = (197, 197, 197)
     outline_width = 3 #keep below 5
 
     __pos: Vector2 = None
@@ -325,8 +325,8 @@ class Player:
         if state == GameState.GAME_ON:
             for obstacle in obstacles:
                 if self.rect.colliderect(obstacle.rect):
-                    #write new highscore before changing gamestate if we beat our last highscore
-                    if score > get_highscore(in_int=True):
+                    #write new highscore before changing gamestate if we beat our last highscore or none exists
+                    if get_highscore() == None or score > get_highscore(in_int=True):
                         with open('save.txt', 'w+') as save:
                             save.truncate(0)
                             save.write('h_score={H}'.format(H=score))
@@ -534,7 +534,7 @@ while True:
         DISPLAY.blit(game_over, go_rect)
 
     #NOTE FOR DEBUGGING --switch gamestate to idle if press I
-    if pygame.key.get_pressed()[pygame.K_i]:
+    if pygame.key.get_pressed()[pygame.K_r]:
         state = GameState.IDLE
 
     #pygame closing
