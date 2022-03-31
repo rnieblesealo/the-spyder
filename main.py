@@ -1,3 +1,4 @@
+from asyncio import shield
 import pygame
 import sys
 import os
@@ -62,6 +63,9 @@ font_s = pygame.font.Font('assets/font.ttf', 16) #small version of font
 
 p_switch = pygame.mixer.Sound('assets/switch.wav')
 p_crash = pygame.mixer.Sound('assets/crash.wav')
+s_peek = pygame.mixer.Sound('assets/peek.wav')
+s_attack = pygame.mixer.Sound('assets/attack.wav')
+s_hide = pygame.mixer.Sound('assets/hide.wav')
 
 shadow.set_alpha(50)
 
@@ -380,8 +384,8 @@ class Player:
         #draw dropshadow
         DISPLAY.blit(r_shadow, r_shadow_rect)
         
-        #draw outline
-        self.draw_outline(r_texture_rect.topleft)
+        # #draw outline
+        # self.draw_outline(r_texture_rect.topleft)
 
         #draw texture
         DISPLAY.blit(r_texture, r_texture_rect)
@@ -390,7 +394,7 @@ player = Player()
 
 # --- Spider --- 
 
-spider_spawn_ticks = 30 #ticks it takes for spider to peek
+spider_spawn_ticks = 20 #ticks it takes for spider to peek
 spider_peek_ticks = 10 #ticks it takes for spider to go from peek -> attack
 spider_attack_ticks = 1 #ticks spider takes attacking
 spider_ticks_t = spider_spawn_ticks
@@ -503,7 +507,7 @@ class Spider:
         texture_rect.center = self.pos
         
         #draw outline
-        self.draw_outline(texture_rect.topleft)
+        # self.draw_outline(texture_rect.topleft)
 
         #draw texture
         DISPLAY.blit(self.texture, texture_rect)
@@ -514,12 +518,15 @@ def spider_time(spider = spider):
     if spider.state == 0:
         spider.state = 1
         spider.current_lane = randint(0, 2)
+        s_peek.play()
         return spider_ticks_t + spider_peek_ticks
     elif spider.state == 1:
         spider.state = 2
+        s_attack.play()
         return spider_ticks_t + spider_attack_ticks
     else:
         spider.state = 0
+        s_hide.play()
         return spider_ticks_t + spider_spawn_ticks
 
 # GAME LOOP ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -588,7 +595,7 @@ while True:
         logo_rect = logo.get_rect()
         logo_rect.center = (DISPLAY_SIZE[0] / 2, 150)
         
-        #reset spider, happens only once
+        #reset spider, TODO happens only once
         spider.reset()
 
         DISPLAY.blit(logo, logo_rect)
