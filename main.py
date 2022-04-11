@@ -56,10 +56,16 @@ road = import_image('assets/road.png', 4)
 shadow = import_image('assets/shadow.png', 3)
 logo = import_image('assets/logo.png')
 game_over = import_image('assets/game_over.png')
+panel = import_image('assets/panel.png')
+m_bronze = import_image('assets/m_bronze.png', 2)
+m_silver = import_image('assets/m_silver.png', 2)
+m_gold = import_image('assets/m_gold.png', 2)
+m_plat = import_image('assets/m_plat.png', 2)
 spider = import_image('assets/spider.png', 5)
 
 font = pygame.font.Font('assets/font.ttf', 32) #big version of font
 font_s = pygame.font.Font('assets/font.ttf', 16) #small version of font
+font_xs = pygame.font.Font('assets/font.ttf', 8) #xtra small version of font
 
 p_switch = pygame.mixer.Sound('assets/switch.wav')
 p_crash = pygame.mixer.Sound('assets/crash.wav')
@@ -98,6 +104,7 @@ def get_highscore(in_int = False) -> int:
         return None
                 
 state = GameState.IDLE
+reset = False #used to make certain events on gamestate change repeat or not
 
 timer = 0 #NOTE timer is aggregate of deltatime used to count towards one tick
 ticks = 0 #NOTE 1 tick == 0.5 second
@@ -108,6 +115,11 @@ score = 0 #current score (base is 0)
 score_incr = 10 #amt score given per score tick
 score_ticks = 2 #amt of ticks before score tick
 score_ticks_t = score_ticks #temp current tick goal for score incr
+
+m_bronze_score = 0 
+m_silver_score = 300
+m_gold_score = 600
+m_plat_score = 900
 
 base_speed = 500
 speed = base_speed #current speed
@@ -134,6 +146,58 @@ spawn_r = Vector2(lane_r.x, 0)
 class Direction(Enum):
     LEFT = -1
     RIGHT = 1
+
+# --- UI ---
+
+class GameOverPanel:
+    medal = None #medal img to use
+    new_best = False
+
+    __panel_pos = Vector2(DISPLAY_SIZE[0] / 2, 275)
+    __panel_rect = panel.get_rect()
+
+    __medal_local_pos = Vector2(60, panel.get_height() / 2)
+    __medal_rect = m_bronze.get_rect()
+
+    __text_local_pos = Vector2(__medal_local_pos.x + 147, panel.get_height() / 2)
+    __text_surf = None
+    __text_rect = None
+
+    def __init__(self):
+        #position
+        self.__panel_rect.center = self.__panel_pos
+        self.__medal_rect.center = self.__medal_local_pos #NOTE local pos refers to local position within panel rect (we blit these to their parent surface rather than the display)
+
+    def set(self):
+        #determine medal from score
+        if score < m_silver_score:
+            self.medal = m_bronze
+        elif score < m_gold_score:
+            self.medal = m_silver
+        elif score < m_plat_score:
+            self.medal = m_gold
+        else:
+            self.medal = m_plat
+
+        #set text
+        self.__text_surf = font_s.render("Score: {s}, Best: {b}".format(s = score, b = high_score), False, (197, 197, 197))
+        self.__text_rect = self.__text_surf.get_rect()
+        self.__text_rect.center = self.__text_local_pos
+
+    def draw(self):
+        #draw panel
+        DISPLAY.blit(panel, self.__panel_rect)
+
+        #draw medal        
+        panel.blit(self.medal, self.__medal_rect)
+
+        #draw text
+        panel.blit(self.__text_surf, self.__text_rect)
+
+        print(pygame.mouse.get_pos())
+
+
+game_over_panel = GameOverPanel()
 
 # --- Road ---
 
@@ -313,7 +377,7 @@ class Spider:
             case _:
                 self.__pos.y = self.y_hidden
 
-        self.pos.x = lanes[self.current_lane].x
+        self.__pos.x = lanes[self.current_lane].x
 
         self.pos = lerp(self.pos, self.__pos, 0.125 * DELTA_TIME * 60)
 
@@ -665,26 +729,34 @@ while True:
         if ticks == spider_ticks_t:
             spider_ticks_t = spider_time()
 
-    else:
-        #reset values when game is not on
-        ticks = 0
-        score = 0
-        speed = base_speed
-        spawn_ticks_t = spawn_ticks
-        score_ticks_t = score_ticks
-        speed_ticks_t = speed_ticks
-        spider_ticks_t = spider_spawn_ticks
-
     if state == GameState.GAME_OVER:
+        #only once on game over...
+        if not reset:
+            #update panel
+            game_over_panel.set()
+            
+            #reset values
+            ticks = 0
+            score = 0
+            speed = base_speed
+            spawn_ticks_t = spawn_ticks
+            score_ticks_t = score_ticks
+            speed_ticks_t = speed_ticks
+            spider_ticks_t = spider_spawn_ticks
+        
+            reset = True
+        
         #draw game over
         go_rect = game_over.get_rect()
         go_rect.center = (DISPLAY_SIZE[0] / 2, 150)
         
+        #draw game over panel
+        game_over_panel.draw()
         DISPLAY.blit(game_over, go_rect)
 
-    #NOTE FOR DEBUGGING --switch gamestate to idle if press I
-    if pygame.key.get_pressed()[pygame.K_r]:
-        state = GameState.IDLE
+        #get restart input
+        if pygame.key.get_pressed()[pygame.K_r]:
+            state = GameState.IDLE
 
     #pygame closing
     pygame.display.update()
