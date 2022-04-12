@@ -5,7 +5,7 @@ import os
 
 from enum import Enum
 from random import randint
-from pygame import PixelArray, Surface, Rect
+from pygame import BLEND_ADD, BLEND_MULT, BLEND_RGB_ADD, BLEND_SUB, SRCALPHA, PixelArray, Surface, Rect
 from pygame.math import Vector2
 
 #TODO fix player class & spider class reassigning asset to actual instance of class :o
@@ -62,6 +62,7 @@ m_bronze = import_image('assets/m_bronze.png', 2)
 m_silver = import_image('assets/m_silver.png', 2)
 m_gold = import_image('assets/m_gold.png', 2)
 m_plat = import_image('assets/m_plat.png', 2)
+m_shadow = import_image('assets/m_shadow.png', 2)
 spider = import_image('assets/spider.png', 5)
 
 font = pygame.font.Font('assets/font.ttf', 32) #big version of font
@@ -74,6 +75,7 @@ s_peek = pygame.mixer.Sound('assets/peek.wav')
 s_attack = pygame.mixer.Sound('assets/attack.wav')
 s_hide = pygame.mixer.Sound('assets/hide.wav')
 
+m_shadow.set_alpha(50)
 shadow.set_alpha(50)
 
 # --- Secondary Initialization ----
@@ -166,23 +168,16 @@ class GameOverPanel:
 
     __nbest_local_pos = Vector2(__text_local_pos.x, __text_local_pos.y + 35)
     __nbest_rect = new_best.get_rect()
+    
+    __mshadow_rect = m_shadow.get_rect()
 
     def __init__(self):
         #position
         self.__panel_rect.center = self.__panel_pos
         self.__medal_rect.center = self.__medal_local_pos #NOTE local pos refers to local position within panel rect (we blit these to their parent surface rather than the display)
+        self.__mshadow_rect.center = self.__medal_local_pos
 
     def set(self):
-        #determine medal from score
-        if score < m_silver_score:
-            self.medal = m_bronze
-        elif score < m_gold_score:
-            self.medal = m_silver
-        elif score < m_plat_score:
-            self.medal = m_gold
-        else:
-            self.medal = m_plat
-
         #check new best & set
         global high_score
         if high_score == None or score > high_score:
@@ -195,8 +190,18 @@ class GameOverPanel:
                     save.truncate(0)
                     save.write('h_score={H}'.format(H=score))
             
-            #update displayed highscore to savefile one
-            high_score = get_highscore()
+        #update displayed highscore to savefile one
+        high_score = get_highscore()
+        
+        #determine medal from score
+        if score < m_silver_score:
+            self.medal = m_bronze
+        elif score < m_gold_score:
+            self.medal = m_silver
+        elif score < m_plat_score:
+            self.medal = m_gold
+        else:
+            self.medal = m_plat
 
         #set text
         self.__text_surf = font_s.render("Score: {s}, Best: {b}".format(s = score, b = high_score), False, (197, 197, 197))
@@ -206,6 +211,9 @@ class GameOverPanel:
     def draw(self):
         #draw panel
         DISPLAY.blit(panel, self.__panel_rect)
+
+        #draw medal shadow
+        panel.blit(m_shadow, self.__mshadow_rect)
 
         #draw medal        
         panel.blit(self.medal, self.__medal_rect)
