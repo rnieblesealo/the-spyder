@@ -1,11 +1,10 @@
-from asyncio import shield
 import pygame
 import sys
 import os
 
 from enum import Enum
 from random import randint
-from pygame import BLEND_ADD, BLEND_MULT, BLEND_RGB_ADD, BLEND_SUB, SRCALPHA, PixelArray, Surface, Rect
+from pygame import PixelArray, Surface, Rect
 from pygame.math import Vector2
 
 #TODO fix player class & spider class reassigning asset to actual instance of class :o
