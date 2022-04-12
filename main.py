@@ -57,6 +57,7 @@ shadow = import_image('assets/shadow.png', 3)
 logo = import_image('assets/logo.png')
 game_over = import_image('assets/game_over.png')
 panel = import_image('assets/panel.png')
+new_best = import_image('assets/new_best.png')
 m_bronze = import_image('assets/m_bronze.png', 2)
 m_silver = import_image('assets/m_silver.png', 2)
 m_gold = import_image('assets/m_gold.png', 2)
@@ -109,7 +110,7 @@ reset = False #used to make certain events on gamestate change repeat or not
 timer = 0 #NOTE timer is aggregate of deltatime used to count towards one tick
 ticks = 0 #NOTE 1 tick == 0.5 second
 
-high_score = get_highscore()
+high_score = get_highscore(in_int=True)
 
 score = 0 #current score (base is 0)
 score_incr = 10 #amt score given per score tick
@@ -151,17 +152,20 @@ class Direction(Enum):
 
 class GameOverPanel:
     medal = None #medal img to use
-    new_best = False
+    is_new_best = False
 
     __panel_pos = Vector2(DISPLAY_SIZE[0] / 2, 275)
     __panel_rect = panel.get_rect()
 
-    __medal_local_pos = Vector2(60, panel.get_height() / 2)
+    __medal_local_pos = Vector2(52, panel.get_height() / 2)
     __medal_rect = m_bronze.get_rect()
 
-    __text_local_pos = Vector2(__medal_local_pos.x + 147, panel.get_height() / 2)
+    __text_local_pos = Vector2(__medal_local_pos.x + 148, panel.get_height() / 2)
     __text_surf = None
     __text_rect = None
+
+    __nbest_local_pos = Vector2(__text_local_pos.x, __text_local_pos.y + 35)
+    __nbest_rect = new_best.get_rect()
 
     def __init__(self):
         #position
@@ -179,6 +183,21 @@ class GameOverPanel:
         else:
             self.medal = m_plat
 
+        #check new best & set
+        global high_score
+        if high_score == None or score > high_score:
+            self.is_new_best = True
+            self.__nbest_rect.center = self.__nbest_local_pos
+
+            #write score
+            if get_highscore() == None or score > get_highscore(in_int=True):
+                with open('save.txt', 'w+') as save:
+                    save.truncate(0)
+                    save.write('h_score={H}'.format(H=score))
+            
+            #update displayed highscore to savefile one
+            high_score = get_highscore()
+
         #set text
         self.__text_surf = font_s.render("Score: {s}, Best: {b}".format(s = score, b = high_score), False, (197, 197, 197))
         self.__text_rect = self.__text_surf.get_rect()
@@ -193,6 +212,10 @@ class GameOverPanel:
 
         #draw text
         panel.blit(self.__text_surf, self.__text_rect)
+
+        #draw new best if applies
+        if self.is_new_best:
+            panel.blit(new_best, self.__nbest_rect)
 
         print(pygame.mouse.get_pos())
 
@@ -429,7 +452,7 @@ class Player:
     pos: Vector2 = None
     rot = 0
 
-    outline_color = (197, 197, 197)
+    outline_color = (185, 185, 185)
     outline_width = 3 #keep below 5
 
     __pos: Vector2 = None
@@ -530,19 +553,8 @@ class Player:
         global state
         if state == GameState.GAME_ON:
             for obstacle in obstacles:
-                if self.hitbox.colliderect(obstacle.hitbox) or self.hitbox.colliderect(spider.hitbox):
-                    #write new highscore before changing gamestate if we beat our last highscore or none exists
-                    if get_highscore() == None or score > get_highscore(in_int=True):
-                        with open('save.txt', 'w+') as save:
-                            save.truncate(0)
-                            save.write('h_score={H}'.format(H=score))
-                            
-                        #change global high score to new one
-                        global high_score
-                        high_score = get_highscore()
-                    
+                if self.hitbox.colliderect(obstacle.hitbox) or self.hitbox.colliderect(spider.hitbox):                            
                     state = GameState.GAME_OVER
-                    
                     p_crash.play()
 
         #input
@@ -743,7 +755,7 @@ while True:
             score_ticks_t = score_ticks
             speed_ticks_t = speed_ticks
             spider_ticks_t = spider_spawn_ticks
-        
+
             reset = True
         
         #draw game over
