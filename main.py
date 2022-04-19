@@ -139,10 +139,6 @@ lane_r = Vector2(lane_c.x + (lane_c.x / 2) * lane_spacing, lane_c.y)
 
 lanes = (lane_l, lane_c, lane_r)
 
-spawn_c = Vector2(lane_c.x, 0)
-spawn_l = Vector2(lane_l.x, 0)
-spawn_r = Vector2(lane_r.x, 0)
-
 # --- Input Definitions --- 
 
 class Direction(Enum):
@@ -224,8 +220,6 @@ class GameOverPanel:
         if self.is_new_best:
             panel.blit(new_best, self.__nbest_rect)
 
-        print(pygame.mouse.get_pos())
-
 
 game_over_panel = GameOverPanel()
 
@@ -243,11 +237,13 @@ road_dsp = road.get_height() * 2
 # --- Obstacles ---
 
 obstacle_assets = [police, car_g, car_o, car_r, car_y]
-obstacle_spawns = [Vector2(lane_c.x, -50), Vector2(lane_l.x, -50), Vector2(lane_r.x, -50)] #NOTE we spawn at -20 so cars spawn offscreen
+obstacle_spawns = [Vector2(lane_l.x, -50), Vector2(lane_c.x, -50), Vector2(lane_r.x, -50)] #NOTE we spawn at -20 so cars spawn offscreen
 obstacles = []
 
 spawn_ticks = 1 #amt of ticks before a vehicle spawns
 spawn_ticks_t = spawn_ticks #temp current spawntick goal for next vehicle to spawn
+
+blocked_spawn = -1 #which lane is blocked from spawning enemies? should be a val between 0 and 3; anything else means no lanes are blocked
 
 class Obstacle:    
     texture: Surface = None
@@ -295,6 +291,16 @@ class Obstacle:
         #drawing (texture)
         DISPLAY.blit(self.texture, self.hitbox)
 
+def randint_exclude(a, b, e):
+    """
+    generates a random number between a, b inclusive excluding e
+    """
+    
+    r = randint(a, b)
+    if r != e:
+        return r
+    return randint_exclude(a, b, e)
+
 def instantiate_obstacle() -> None:
     """
     creates a moving obstacle
@@ -303,7 +309,7 @@ def instantiate_obstacle() -> None:
     obstacles.append(
         Obstacle(
             obstacle_assets[randint(0, len(obstacle_assets) - 1)],
-            obstacle_spawns[randint(0, len(obstacle_spawns) - 1)], #TODO change this to spawnpoints!
+            obstacle_spawns[randint_exclude(0, len(obstacle_spawns) - 1, blocked_spawn)]
         )
     )
 
@@ -407,9 +413,13 @@ class Spider:
             case _:
                 self.__pos.y = self.y_hidden
 
-        self.__pos.x = lanes[self.current_lane].x
+        #use this for smooth x spider pos (looks ugly)
+        #self.__pos.x = lanes[self.current_lane].x
 
         self.pos = lerp(self.pos, self.__pos, 0.125 * DELTA_TIME * 60)
+        
+        #use this for instant x spider pos (looks nicer)
+        self.pos.x = lanes[self.current_lane].x
 
         #update rect (NOTE this isn't used for drawing, it's used for collision!)
         self.hitbox.center = self.pos
@@ -428,9 +438,13 @@ class Spider:
 spider = Spider()
 
 def spider_time(spider = spider):
+    global blocked_spawn
+    
     if spider.state == 0:
         spider.state = 1
         spider.current_lane = randint(0, 2)
+        if spider.current_lane == 1: #0 represents left, 1 center, 2 right
+            blocked_spawn = 1 #block enemies from spawning at the center if spider goes here, this is more fair!
         s_peek.play()
         return spider_ticks_t + spider_peek_ticks
     elif spider.state == 1:
@@ -439,6 +453,7 @@ def spider_time(spider = spider):
         return spider_ticks_t + spider_attack_ticks
     else:
         spider.state = 0
+        blocked_spawn = -1 #reset blocked obstacle spawn to none
         s_hide.play()
         return spider_ticks_t + spider_spawn_ticks
 
@@ -690,6 +705,10 @@ while True:
             DISPLAY.blit(hs_text, hs_text_rect)
 
     if state == GameState.GAME_ON:
+        #allow game values to be reset again
+        if reset:
+            reset = False
+        
         #update obstacles
         for obstacle in obstacles:
             obstacle.update()
