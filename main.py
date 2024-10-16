@@ -12,14 +12,19 @@ from pygame.math import Vector2
 pygame.init()
 pygame.mixer.init()
 
-DISPLAY_SIZE = (400, 500)
+DISPLAY_SCALE = 2
+DISPLAY_SIZE = (
+    400 * DISPLAY_SCALE,
+    500 * DISPLAY_SCALE
+)
+
 DISPLAY = pygame.display.set_mode(DISPLAY_SIZE)
 CLOCK = pygame.time.Clock()
 
 
 def print_warning(n="?"):
     """
-    shorthand for printing out a warning message.
+    Shorthand for printing out a warning message.
     """
 
     print("{S} {N}".format(S="[!]", N=n))
@@ -27,7 +32,8 @@ def print_warning(n="?"):
 
 def import_image(filepath: str, scale=1) -> Surface:
     """
-    imports an image as surface and applies a scale to it if specified.
+    Imports an image as surface and applies a scale to it if specified.
+    Will automatically apply the global DISPLAY_SCALE as well.
     """
 
     if not os.path.exists(filepath):
@@ -36,12 +42,15 @@ def import_image(filepath: str, scale=1) -> Surface:
 
     img = pygame.image.load(filepath).convert_alpha()
 
-    return pygame.transform.scale(img, (img.get_width() * scale, img.get_height() * scale))
+    w_scale = img.get_width() * scale * DISPLAY_SCALE
+    h_scale = img.get_height() * scale * DISPLAY_SCALE
+
+    return pygame.transform.scale(img, (w_scale, h_scale))
 
 
 def lerp(a=0, b=0, t=0.125):
     """
-    lerps without the need to use a vector2
+    erps without the need to use a vector2
     """
 
     return a + (t - 0) * (b - a) / (1 - 0)
